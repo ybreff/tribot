@@ -1,0 +1,103 @@
+// import { createStore, applyMiddleware, combineReducers } from "redux";
+// import thunk from "redux-thunk";
+// import { persistStore, persistReducer } from "redux-persist";
+// import { composeWithDevTools } from "redux-devtools-extension";
+// import { createWrapper } from "next-redux-wrapper";
+// import { loginReducer } from "./reducers/LoginReducers";
+
+// export default (initialState) => {
+//   // middleware
+//   const middleware = [thunk];
+
+//   const reducers = combineReducers({
+//     loginReducer
+//   });
+
+//   let store;
+
+//   if (typeof window !== 'undefined') {
+//     const storage = require('redux-persist/lib/storage').default;
+
+//     const persistConfig = {
+//       key: 'root',
+//       storage
+//     };
+
+//     store = createStore(
+//       persistReducer(persistConfig, reducers),
+//       initialState,
+//       composeWithDevTools(applyMiddleware(...middleware))
+//     );
+
+//     store.__PERSISTOR = persistStore(store);
+//   } else {
+//     store = createStore(
+//       reducers,
+//       initialState,
+//       composeWithDevTools(applyMiddleware(...middleware))
+//     );
+//   }
+// // const persistor = persistStore(store);
+
+// // assigning store to next wrapper
+// // const makeStore = () => store;
+
+// // export const wrapper = createWrapper(makeStore);
+
+//   return store;
+// }
+
+  
+
+import { createStore, applyMiddleware, combineReducers } from 'redux';
+import { createWrapper, HYDRATE } from 'next-redux-wrapper';
+import thunkMiddleware from 'redux-thunk';
+import { loginReducer } from "./reducers/LoginReducers";
+import storage from './sync_storage';
+// If you don't bother about the error redux-persist failed to create sync storage. falling back to noop storage...uncomment the next line and comment out the previous import. See more on - https://github.com/vercel/next.js/discussions/15687
+// const storage = require('redux-persist/lib/storage').default;
+
+//COMBINING ALL REDUCERS
+const combinedReducer = combineReducers({
+  loginReducer,
+  // OTHER REDUCERS WILL BE ADDED HERE
+});
+
+// BINDING MIDDLEWARE
+const bindMiddleware = (middleware) => {
+  if (process.env.NODE_ENV !== 'production') {
+    const { composeWithDevTools } = require('redux-devtools-extension');
+    return composeWithDevTools(applyMiddleware(...middleware));
+  }
+  return applyMiddleware(...middleware);
+};
+
+const makeStore = ({ isServer }) => {
+  if (isServer) {
+    //If it's on server side, create a store
+    return createStore(combinedReducer, bindMiddleware([thunkMiddleware]));
+  } else {
+    //If it's on client side, create a store which will persist
+    const { persistStore, persistReducer } = require('redux-persist');
+
+    const persistConfig = {
+      key: 'nextjs',
+      whitelist: ['counter'], // only counter will be persisted, add other reducers if needed
+      storage, // if needed, use a safer storage
+    };
+
+    const persistedReducer = persistReducer(persistConfig, combinedReducer); // Create a new reducer with our existing reducer
+
+    const store = createStore(
+      persistedReducer,
+      bindMiddleware([thunkMiddleware])
+    ); // Creating the store again
+
+    store.__persistor = persistStore(store); // This creates a persistor object & push that persisted object to .__persistor, so that we can avail the persistability feature
+
+    return store;
+  }
+};
+
+// Export the wrapper & wrap the pages/_app.js with this wrapper only
+export const wrapper = createWrapper(makeStore);

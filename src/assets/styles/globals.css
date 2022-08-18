@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+label.required:before {
+    color: #FF3636 !important;
+    content: '* ';
+}
